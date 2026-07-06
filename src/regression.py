@@ -139,3 +139,58 @@ def p_values(dataset:DataFrame, targets:np.array, predictions: np.array, paramet
     t_stats = t_statistics(dataset, targets, predictions, parameters)
     df = len(targets) - len(parameters)
     return 2 * stats.t.sf(np.abs(t_stats), df)
+
+
+def K_nearest_neighbors(k:int, dataset:np.array, targets:np.array, point:np.array)->float:
+    """
+    Finds the K-Nearest Neighbors to Point from the Dataset, and returns the average of their targets
+        k: the number of neighbors to consider, lower k means higher flexibility
+        dataset: the dataset used to get the neighbors from (the training set)
+        targets: the targets of the dataset
+        point: the point whose target will be predicted
+    """
+    #euclidean distance
+    distances = np.linalg.norm(dataset - point, axis=1)
+    closest_indices = np.argpartition(distances, k)[:k]
+    neighbors_targets = targets[closest_indices]
+    return neighbors_targets.mean()
+
+def KNN_prediction(k:int, dataset:np.array, targets:np.array, testing_dataset:np.array)->np.array:
+    """
+    Calculates the prediction of the testing dataset using KNN regression from the dataset and its targets, returns an array for the predictions
+        k: the number of neighbors to consider, lower k means higher flexibility
+        dataset: the dataset used to get the neighbors from (the training set)
+        targets: the targets of the dataset
+        testing_dataset: the points whose targets will be predicted
+    """
+    if isinstance(dataset, DataFrame):
+        dataset= dataset.to_numpy()
+    if isinstance(testing_dataset, DataFrame):
+        testing_dataset= testing_dataset.to_numpy()
+
+    predictions = np.zeros(len(testing_dataset))
+    for i, row in enumerate(testing_dataset):
+        t = K_nearest_neighbors(k, dataset, targets, row)
+        predictions[i]= t
+    return predictions
+
+
+def KNN_regression_tuning(k_range:range, training_dataset:DataFrame, training_targets:np.array, testing_dataset:DataFrame, testing_targets:np.array)->dict:
+    """
+    Tests KNN Regression for different K's in k_range from the training set on the testing set, and returns a dictionary whose keys are the different values of k and values are the MSE
+        k_range: range for k values
+        training_set: the dataset used to get the neighbors from
+        training_targets: targets of the training_set
+        testing_dataset: the points whose targets will be predicted
+        testing_targets: targets of the testing_set
+    """
+    K_MSE = dict()
+    training_dataset= training_dataset.to_numpy()
+    testing_dataset=testing_dataset.to_numpy()
+    for k in k_range:
+        print(f'iteration: k={k}')
+        #predict
+        predictions = KNN_prediction(k, training_dataset, training_targets, testing_dataset)
+        #calculate the MSE
+        K_MSE[k] = MSE(testing_targets, predictions)
+    return K_MSE

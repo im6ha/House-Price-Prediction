@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pandas import DataFrame
+import numpy as np
 
 """
 The functions are designed to work for the California Housing dataset specifically
@@ -78,4 +79,51 @@ def bivariate_plot(dataset: DataFrame)-> None:
         axes[i].set_xlabel(dataset.columns[i])
     
     plt.tight_layout()
+    plt.show()
+
+def residuals_vs_predicted_values(targets:np.array, predictions:np.array):
+    """
+    Plots the Residuals vs Predicted Values
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+    """
+    residuals = targets - predictions
+    plt.scatter(predictions, residuals, c='red', s=10)
+    plt.xlabel("The Predicted Values")
+    plt.ylabel("Residuals")
+    plt.title('Residuals vs Predicted Values')
+    #add a line at residuals=0
+    plt.axhline(0, color='black', linestyle='--', linewidth=2)
+    plt.show()
+
+def residuals_histogram(targets:np.array, predictions:np.array):
+    """
+    Plots a histogram for the Residuals (used to check the normality of the residuals)
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+    """
+    residuals = targets - predictions
+    plt.hist(residuals)
+    plt.xlabel("The Residuals")
+    plt.ylabel("Values")
+    plt.title('Residuals Histogram')
+    plt.show()
+
+def K_MSE(training_k_mse:dict, testing_k_mse:dict):
+    """
+    Plots the training MSE and testing MSE with respect to k
+        training_k_mse: dictionary with keys as values of k and values as the calculated training MSE
+        testing_k_mse:  dictionary with keys as values of k and values as the calculated testing MSE
+    """
+    k = training_k_mse.keys()
+    if k != testing_k_mse.keys():
+        raise ValueError('The K values must be similair in both parameters')
+    
+    plt.plot(k, training_k_mse, label="Training MSE", color='red')
+    plt.plot(k, testing_k_mse, label="Testing MSE", color='blue')
+    plt.xlabel("K")
+    plt.ylabel("MSE")
+    plt.title("MSE vs K")
+    plt.legend()
+    plt.grid(True)
     plt.show()

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pandas import DataFrame
 import numpy as np
+import time
 
 """
 The functions are designed to work for the California Housing dataset specifically
@@ -14,7 +15,7 @@ def univariate_plot(dataset : DataFrame, start_col:int, end_col:int) -> None:
         start_col: index of first column to standardize
         end_col: index of last column to standardize (EXCLUSIVE)
     """
-    cols_count = end_col - start_col
+    cols_count = end_col -start_col
 
     fig, axes = plt.subplots(cols_count, 2, figsize=(15, 6*cols_count))
     axes = axes.flatten()
@@ -116,14 +117,72 @@ def K_MSE(training_k_mse:dict, testing_k_mse:dict):
         testing_k_mse:  dictionary with keys as values of k and values as the calculated testing MSE
     """
     k = training_k_mse.keys()
+    training_mse = training_k_mse.values()
+    testing_mse = testing_k_mse.values()
     if k != testing_k_mse.keys():
         raise ValueError('The K values must be similair in both parameters')
     
-    plt.plot(k, training_k_mse, label="Training MSE", color='red')
-    plt.plot(k, testing_k_mse, label="Testing MSE", color='blue')
+    plt.plot(k, training_mse, label="Training MSE", color='red')
+    plt.plot(k, testing_mse, label="Testing MSE", color='blue')
     plt.xlabel("K")
     plt.ylabel("MSE")
     plt.title("MSE vs K")
     plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def gradient_descent_tuning(observations:DataFrame, targets:np.array, tuning_values, default_value: float, parameter:str, gradient_descent):
+    """
+    Runs gradient descent with multiple values for alpha/epsilon, in each run we capture: the cost and time. Two graphs are plotted
+        observations: Dataframe of all the observations, shape=(n, p)
+        targets: array of the targets (of the observations)
+        tuning_values: range of values that tuned parameter takes throughout iterations
+        default_value: value taken by the non-tuned parameter
+        parameter: 'A' if we tune based on alpha or 'E' if we tune based on epsilon
+        gradient_descent: function object of gradient descent
+    """
+    zeros = np.zeros(shape=(observations.shape[1] + 1))
+    iterations = 0
+    times = []
+    costs = []
+    for value in tuning_values:
+        iterations+=1
+        print(f'iteration #{iterations} starts now')
+
+        if parameter == 'A':
+            alpha = value
+            epsilon = default_value
+        elif parameter == 'E':
+            alpha = default_value
+            epsilon = value
+        else:
+            raise ValueError("parameter can be eiher 'A' or 'E'")
+        
+        start = time.time()
+        params, cost = gradient_descent(observations, targets, alpha, epsilon, zeros)
+        end = time.time()
+        times.append((end-start)*1000)
+        costs.append(cost.values()[-1])
+    
+    parameter_name = 'alpha' if parameter=='A' else 'epsilon'
+
+    fig, axes = plt.subplots(2,1, figsize=(10, 12))
+    axes[0].plot(tuning_values, times, color='green')
+    axes[0].set_xlabel(parameter_name)
+    axes[0].set_ylabel('Time (ms)')
+    axes[0].set_title(f'{parameter_name} vs Time')
+    axes[0].grid(True)
+
+    axes[1].plot(tuning_values, costs, label='Cost', color='red')
+    axes[1].set_xlabel(parameter_name)
+    axes[1].set_ylabel('Cost')
+    axes[1].set_title(f'{parameter_name} vs Cost')
+    axes[1].grid(True)
+
+def gradient_descent_convergence(iterations, costs):
+    plt.plot(iterations, costs, color='blue')
+    plt.xlabel("Iterations")
+    plt.ylabel("Cost")
+    plt.title("Gradient Descent Convergence")
     plt.grid(True)
     plt.show()

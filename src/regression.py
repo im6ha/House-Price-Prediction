@@ -188,7 +188,6 @@ def KNN_regression_tuning(k_range:range, training_dataset:DataFrame, training_ta
     training_dataset= training_dataset.to_numpy()
     testing_dataset=testing_dataset.to_numpy()
     for k in k_range:
-        print(f'iteration: k={k}')
         #predict
         predictions = KNN_prediction(k, training_dataset, training_targets, testing_dataset)
         #calculate the MSE

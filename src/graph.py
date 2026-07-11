@@ -82,7 +82,7 @@ def bivariate_plot(dataset: DataFrame)-> None:
     plt.tight_layout()
     plt.show()
 
-def residuals_vs_predicted_values(targets:np.array, predictions:np.array):
+def residuals_vs_predicted_values(targets:np.ndarray, predictions:np.ndarray):
     """
     Plots the Residuals vs Predicted Values
         targets: array of the targets (y)
@@ -97,7 +97,7 @@ def residuals_vs_predicted_values(targets:np.array, predictions:np.array):
     plt.axhline(0, color='black', linestyle='--', linewidth=2)
     plt.show()
 
-def residuals_histogram(targets:np.array, predictions:np.array):
+def residuals_histogram(targets:np.ndarray, predictions:np.ndarray):
     """
     Plots a histogram for the Residuals (used to check the normality of the residuals)
         targets: array of the targets (y)
@@ -110,28 +110,30 @@ def residuals_histogram(targets:np.array, predictions:np.array):
     plt.title('Residuals Histogram')
     plt.show()
 
-def K_MSE(training_k_mse:dict, testing_k_mse:dict):
+def K_Cost(training_k_cost:dict, testing_k_cost:dict, MSE=True):
     """
-    Plots the training MSE and testing MSE with respect to k
+    Plots the training MSE (or error rate) and testing MSE (or error rate) with respect to k
         training_k_mse: dictionary with keys as values of k and values as the calculated training MSE
         testing_k_mse:  dictionary with keys as values of k and values as the calculated testing MSE
+        MSE: True if the values are mse, False if they are error rates
     """
-    k = training_k_mse.keys()
-    training_mse = training_k_mse.values()
-    testing_mse = testing_k_mse.values()
-    if k != testing_k_mse.keys():
+    name = 'MSE' if MSE else 'Error Rate'
+    k = training_k_cost.keys()
+    training_cost = training_k_cost.values()
+    testing_cost = testing_k_cost.values()
+    if k != testing_k_cost.keys():
         raise ValueError('The K values must be similair in both parameters')
     
-    plt.plot(k, training_mse, label="Training MSE", color='red')
-    plt.plot(k, testing_mse, label="Testing MSE", color='blue')
+    plt.plot(k, training_cost, label=f"Training {name}", color='red')
+    plt.plot(k, testing_cost, label=f"Testing {name}", color='blue')
     plt.xlabel("K")
-    plt.ylabel("MSE")
-    plt.title("MSE vs K")
+    plt.ylabel(name)
+    plt.title(f"{name} vs K")
     plt.legend()
     plt.grid(True)
     plt.show()
 
-def gradient_descent_tuning(observations:DataFrame, targets:np.array, tuning_values, default_value: float, parameter:str, gradient_descent):
+def gradient_descent_tuning(observations:DataFrame, targets:np.ndarray, tuning_values, default_value: float, parameter:str, gradient_descent):
     """
     Runs gradient descent with multiple values for alpha/epsilon, in each run we capture: the cost and time. Two graphs are plotted
         observations: Dataframe of all the observations, shape=(n, p)

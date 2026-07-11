@@ -2,7 +2,7 @@ from pandas import DataFrame, Series
 import numpy as np
 from scipy import stats
 
-def normal_equation(data:DataFrame, targets:Series) -> np.array:
+def normal_equation(data:DataFrame, targets:Series) -> np.ndarray:
     """
     Estimates the Least Squares Coefficients using Normal Equation, return an array whose first element is the bias (intercept) and the remaining elements are the weights, and also the time of execution in seconds
         data: data matrix
@@ -21,7 +21,7 @@ def normal_equation(data:DataFrame, targets:Series) -> np.array:
     return temp@y
 
 
-def linear_predict(data:DataFrame, parameters:np.array)-> np.array:
+def linear_predict(data:DataFrame, parameters:np.ndarray)-> np.ndarray:
     """
     Predicts the response of every row of the data using a Linear Model with the given parameters and returns the array of predictions (element i of the prediction array corresponds to the prediction of the ith row of the data matrix)
         data: data matrix
@@ -33,7 +33,7 @@ def linear_predict(data:DataFrame, parameters:np.array)-> np.array:
 
     return (intercept + (data @ weights.T)).T
 
-def RSS(targets:np.array, predictions: np.array)->float:
+def RSS(targets:np.ndarray, predictions: np.ndarray)->float:
     """
     Calculates the Residual Sum of Squares
         targets: array of the targets (y)
@@ -42,7 +42,7 @@ def RSS(targets:np.array, predictions: np.array)->float:
 
     return ((targets - predictions)**2).sum()
 
-def MSE(targets:np.array, predictions: np.array)->float:
+def MSE(targets:np.ndarray, predictions: np.ndarray)->float:
     """
     Calculates the Mean Squared Error
         targets: array of the targets (y)
@@ -51,7 +51,7 @@ def MSE(targets:np.array, predictions: np.array)->float:
 
     return RSS(targets, predictions) / len(targets)
 
-def RSE(targets:np.array, predictions: np.array, p: int)->float:
+def RSE(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
     """
     Calculates the Residual Standard Error (which can also be an estimate for the standard deviation of the irreducible error epsilon)
         targets: array of the targets (y)
@@ -61,7 +61,7 @@ def RSE(targets:np.array, predictions: np.array, p: int)->float:
 
     return np.sqrt(RSS(targets, predictions) / (len(targets) - p - 1) )
 
-def TSS(targets:np.array)->float:
+def TSS(targets:np.ndarray)->float:
     """
     Calculates the Original Sum of Variation in the Data
         targets: array of the targets (y)
@@ -70,7 +70,7 @@ def TSS(targets:np.array)->float:
 
     return ((targets-mean_val)**2).sum()
 
-def R_Square(targets:np.array, predictions: np.array)->float:
+def R_Square(targets:np.ndarray, predictions: np.ndarray)->float:
     """
     Calculates the proportion of the explained variability by fitting the linear model
         targets: array of the targets (y)
@@ -81,7 +81,7 @@ def R_Square(targets:np.array, predictions: np.array)->float:
 
     return (TSS_val-RSS_val)/TSS_val
 
-def F_statistic(targets:np.array, predictions: np.array, p:int)->tuple[float, float]:
+def F_statistic(targets:np.ndarray, predictions: np.ndarray, p:int)->tuple[float, float]:
     """
     Calculates the F-Statistic which is used in hypothesis testing, returns the F-statistic and the p-value (probability of the null hypothesis being true)
         targets: array of the targets (y)
@@ -100,7 +100,7 @@ def F_statistic(targets:np.array, predictions: np.array, p:int)->tuple[float, fl
 
     return (F_stat, p_value)
 
-def standard_errors(dataset:DataFrame, targets:np.array, predictions: np.array, p: int)->np.array:
+def standard_errors(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, p: int)->np.ndarray:
     """
     Calculates the standard errors, returns an array where each element represents a standard error of a parameter (the first element is the standard error of the bias)
         dataset: data matrix
@@ -117,7 +117,7 @@ def standard_errors(dataset:DataFrame, targets:np.array, predictions: np.array, 
     covariance_matrix = estimated_irreducible_variance * ( np.linalg.inv(X_T @ X) )
     return np.sqrt(np.diag(covariance_matrix))
 
-def t_statistics(dataset:DataFrame, targets:np.array, predictions: np.array, parameters: np.array)->np.array:
+def t_statistics(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, parameters: np.ndarray)->np.ndarray:
     """
     Calculates the t-statistics, returns an array where each element represents a t-statistic of a parameter (the first element is the t-statistic of the bias)
         dataset: data matrix
@@ -128,7 +128,7 @@ def t_statistics(dataset:DataFrame, targets:np.array, predictions: np.array, par
     errors = standard_errors(dataset, targets, predictions, len(parameters)-1)
     return parameters/errors
 
-def p_values(dataset:DataFrame, targets:np.array, predictions: np.array, parameters: np.array)->np.array:
+def p_values(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, parameters: np.ndarray)->np.ndarray:
     """
     Calculates the p-values, returns an array where each element represents a p-value of a parameter (the first element is the p-value of the bias)
         dataset: data matrix
@@ -141,7 +141,7 @@ def p_values(dataset:DataFrame, targets:np.array, predictions: np.array, paramet
     return 2 * stats.t.sf(np.abs(t_stats), df)
 
 
-def K_nearest_neighbors(k:int, dataset:np.array, targets:np.array, point:np.array)->float:
+def K_nearest_neighbors(k:int, dataset:np.ndarray, targets:np.ndarray, point:np.ndarray)->float:
     """
     Finds the K-Nearest Neighbors to Point from the Dataset, and returns the average of their targets
         k: the number of neighbors to consider, lower k means higher flexibility
@@ -155,7 +155,7 @@ def K_nearest_neighbors(k:int, dataset:np.array, targets:np.array, point:np.arra
     neighbors_targets = targets[closest_indices]
     return neighbors_targets.mean()
 
-def KNN_prediction(k:int, dataset:np.array, targets:np.array, testing_dataset:np.array)->np.array:
+def KNN_prediction(k:int, dataset:np.ndarray, targets:np.ndarray, testing_dataset:np.ndarray)->np.ndarray:
     """
     Calculates the prediction of the testing dataset using KNN regression from the dataset and its targets, returns an array for the predictions
         k: the number of neighbors to consider, lower k means higher flexibility
@@ -175,7 +175,7 @@ def KNN_prediction(k:int, dataset:np.array, targets:np.array, testing_dataset:np
     return predictions
 
 
-def KNN_regression_tuning(k_range:range, training_dataset:DataFrame, training_targets:np.array, testing_dataset:DataFrame, testing_targets:np.array)->dict:
+def KNN_regression_tuning(k_range:range, training_dataset:DataFrame, training_targets:np.ndarray, testing_dataset:DataFrame, testing_targets:np.ndarray)->dict:
     """
     Tests KNN Regression for different K's in k_range from the training set on the testing set, and returns a dictionary whose keys are the different values of k and values are the MSE
         k_range: range for k values

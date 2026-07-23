@@ -16,22 +16,25 @@ def one_hot_encoding(column:pd.Series) -> pd.DataFrame:
     
     return new_variables
 
-def standard_scaling(dataset: pd.DataFrame, start_col:int, end_col:int) -> tuple[pd.DataFrame, dict[str, (float, float) ]]:
+def standard_scaling(dataset: pd.DataFrame, start_col:int, end_col:int, stats: dict[str, tuple[float, float]] | None = None) -> tuple[pd.DataFrame, dict[str, tuple[float, float] ]]:
     """
     Performs standard scaling on a set of columns from the dataset, and returns the new scaled dataset and a dictionary whose keys are the scaled columns names and values are tuples (original_mean, original_std)
         dataset: Pandas DataFrame representing the full dataset
         start_col: index of first column to standardize
         end_col: index of last column to standardize (EXCLUSIVE)
+        stats: stats to use as the original mean and std instead of recalculating
     """
-    stats = dict()
+    dataset_copy = dataset.copy()
+    stats_result = dict()
     for i in range(start_col, end_col):
-        og_mean = dataset.iloc[:, i].mean()
-        og_std = dataset.iloc[:, i].std()
         col_name = dataset.columns[i]
-        dataset.iloc[:, i] = (dataset.iloc[:, i] - og_mean) / og_std
-        stats[col_name] = (og_mean, og_std)
+        og_mean = dataset_copy.iloc[:, i].mean() if stats is None else stats[col_name][0]
+        og_std = dataset_copy.iloc[:, i].std() if stats is None else stats[col_name][1]
+        col_name = dataset_copy.columns[i]
+        dataset_copy.iloc[:, i] = (dataset_copy.iloc[:, i] - og_mean) / og_std
+        stats_result[col_name] = (og_mean, og_std)
 
-    return (dataset, stats)
+    return (dataset_copy, stats_result)
 
 def log_transform(dataset: pd.DataFrame, col_names: list[str]) -> pd.DataFrame:
     """

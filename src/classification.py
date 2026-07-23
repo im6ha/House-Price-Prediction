@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
+from pingouin import multivariate_normality
+
 
 """
 1)- Logistic Regression
@@ -362,3 +364,21 @@ def naive_bayes_prediction(observations:pd.DataFrame, mean_std_estimates:dict, p
         predicted_class = max(results, key=results.get)
         predictions.append(predicted_class)
     return predictions
+
+def henze_zirkler_test(training_data:pd.DataFrame)->dict[str:float]:
+    """
+    Performs Henze-Zirkler test to check if within every class the predictors follow a multivariate normal distribution, and returns the p-value in every class
+    returns dict {class_name:p_value} and also prints tha p-values
+        training_data: the training DataGrame including the target column 'median_house_value'
+    """
+    results= dict()
+    predictors = list(training_data.columns)
+    predictors.remove("median_house_value")
+    for cls in training_data["median_house_value"].unique():
+        cls_predictors = training_data.loc[training_data["median_house_value"] ==cls, predictors]
+
+        hz, pval, normal = multivariate_normality(cls_predictors)
+        print(f"{cls}: p-value= {pval}")
+        results[cls] = pval 
+    return results
+

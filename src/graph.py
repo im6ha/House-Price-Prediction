@@ -188,3 +188,20 @@ def gradient_descent_convergence(iterations, costs):
     plt.title("Gradient Descent Convergence")
     plt.grid(True)
     plt.show()
+
+def polynomial_regression_graph(degree_metrics:DataFrame):
+    """
+    Plots the Model's performance as the degrees of the polynomial are increasing
+    """
+    colors=['#7209B7', '#3A0CA3', '#4361EE', 
+    '#4CC9F0', '#4895EF', '#560BAD', 
+    '#B5179E', '#E01E37', '#F72585']
+    for i, metric in enumerate(degree_metrics.columns[1:]):
+        plt.plot(degree_metrics.iloc[:, 0], degree_metrics.loc[:, metric], label=metric, color=colors[i%9])
+    
+    plt.xlabel('Degrees')
+    plt.ylabel("Evaluation Metrics")
+    plt.title('Degrees vs Evaluation')
+    plt.legend()
+    plt.grid(True)
+    plt.show()

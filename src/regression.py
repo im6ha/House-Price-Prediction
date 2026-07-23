@@ -1,24 +1,26 @@
 from pandas import DataFrame, Series
 import numpy as np
 from scipy import stats
+from src.clean import standard_scaling
 
-def normal_equation(data:DataFrame, targets:Series) -> np.ndarray:
+def normal_equation(data:DataFrame|np.ndarray, targets:Series|np.ndarray) -> np.ndarray:
     """
-    Estimates the Least Squares Coefficients using Normal Equation, return an array whose first element is the bias (intercept) and the remaining elements are the weights, and also the time of execution in seconds
+    Estimates the Least Squares Coefficients using Normal Equation, return an array whose first element is the bias (intercept) and the remaining elements are the weights
         data: data matrix
         y: targets column
     """
-    X = data.to_numpy()
-    y = targets.to_numpy()
+    if not isinstance(data, np.ndarray):
+        X = data.to_numpy()
+    else:
+        X = data
+    if not isinstance(targets, np.ndarray):
+        y = targets.to_numpy()
+    else:
+        y = targets
     #add the column of ones to X
     X= np.insert(X, 0, np.ones( len(y) ), axis=1 )
-
-    X_T = X.T
-    temp = X_T @ X
-    temp = np.linalg.inv(temp)
-    temp = temp @ X_T 
-
-    return temp@y
+    beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+    return beta
 
 
 def linear_predict(data:DataFrame, parameters:np.ndarray)-> np.ndarray:
@@ -81,6 +83,56 @@ def R_Square(targets:np.ndarray, predictions: np.ndarray)->float:
 
     return (TSS_val-RSS_val)/TSS_val
 
+def mallows_cp(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
+    """
+    Calculates Mallow's Cp
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+        p: number of predictors
+    """
+    RSS_val = RSS(targets, predictions)
+    #it's the RSE**2, just calculated again to calculate RSS only once
+    eps_variance = RSS_val / (len(targets) - p - 1)
+    numerator = RSS_val + 2*p*eps_variance
+    n=len(targets)
+    return numerator/n
+
+def aic(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
+    """
+    Calculates Akaike Information Criterion (AIC)
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+        p: number of predictors
+    """
+    RSS_val = RSS(targets, predictions)
+    eps_variance = RSS_val / (len(targets) - p - 1)
+    n=len(targets)
+    return (RSS_val + 2*p*eps_variance) / n
+
+def bic(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
+    """
+    Calculates Bayesian Information Criterion (BIC)
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+        p: number of predictors
+    """
+    RSS_val = RSS(targets, predictions)
+    eps_variance = RSS_val / (len(targets) - p - 1)
+    n=len(targets)
+    return (RSS_val + np.log(n)*p*eps_variance) / n
+
+def adjusted_r2(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
+    """
+    Calculates the Adjusted R**2
+        targets: array of the targets (y)
+        predictions: array of the prediction (y-hat)
+        p: number of predictors
+    """
+    RSS_val = RSS(targets, predictions)
+    TSS_val = TSS(targets)
+    n=len(targets)
+    return 1 - ( (RSS_val/(n-p-1)) / (TSS_val/(n-1)) )
+
 def F_statistic(targets:np.ndarray, predictions: np.ndarray, p:int)->tuple[float, float]:
     """
     Calculates the F-Statistic which is used in hypothesis testing, returns the F-statistic and the p-value (probability of the null hypothesis being true)
@@ -139,6 +191,132 @@ def p_values(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, par
     t_stats = t_statistics(dataset, targets, predictions, parameters)
     df = len(targets) - len(parameters)
     return 2 * stats.t.sf(np.abs(t_stats), df)
+
+def stepwise_selection(training_set:DataFrame, training_targets:np.ndarray, predictor_names:list[str], metric:callable, maximize:bool=False)->tuple[np.ndarray,float, list[str]]:
+    """
+    Performs Hybrid Stepwise Selection, and Evaluate using the Metric. Returns a tuple (parameter_estimates with first element representing the bias, best_metric, list of predictors used in the model)
+        training_set: DataFrame of the training set used to fit the models
+        training_targets: array representing the targets of the training_set
+        predictor_names: list of the names of all the observed (and featured) predictors
+        metric: function returning a float for the metric used in the models evaluation (ex: AIC, BIC, Adjusted R**2)
+        maximize: bool, indicating if the goal is to maximize the metric. default is minimize
+    """
+    used_predictors = []
+    available_predictors = predictor_names.copy()
+
+    #these flags will be set to false when forward (or backward) selection improves the model
+    forward_flag=False
+    backward_flag = False
+
+    #start by the null model
+    predictions = training_targets.mean()
+    best_metric = metric(training_targets, predictions, 0)
+    best_parameters = [training_targets.mean()]
+
+    #stop when all predictors are included or both forward and backward selections did'nt improve the model
+    while(len(available_predictors)>0 and (not forward_flag or not backward_flag)):
+        forward_flag=True
+        backward_flag = True
+        #variables that hold the name of the predictors that will be potentially added (or removed)
+        pred_to_add=None
+        pred_to_remove=None
+        #Forward Selection
+        for predictor in available_predictors:
+            X = training_set[used_predictors + [predictor] ]
+            parameters = normal_equation(X, training_targets)
+            predictions = linear_predict(X, parameters)
+            metric_val = metric(training_targets, predictions, len(used_predictors) + 1)
+            if( (maximize and metric_val>best_metric) or (not maximize and metric_val<best_metric) ):
+                best_metric = metric_val
+                best_parameters = parameters
+                pred_to_add = predictor
+        if pred_to_add is not None:
+            print(f'Adding the predictor {pred_to_add} resulting in {metric.__name__}={best_metric}')
+            available_predictors.remove(pred_to_add)
+            used_predictors.append(pred_to_add)
+            forward_flag=False
+
+        #Backward Selection
+        for predictor in used_predictors:
+            used_pred_copy = used_predictors.copy()
+            used_pred_copy.remove(predictor)
+            X = training_set[used_pred_copy]
+            parameters = normal_equation(X, training_targets)
+            predictions = linear_predict(X, parameters)
+            metric_val = metric(training_targets, predictions, len(used_pred_copy))
+            if( (maximize and metric_val>best_metric) or (not maximize and metric_val<best_metric) ):
+                best_metric = metric_val
+                best_parameters = parameters
+                pred_to_remove = predictor
+        
+        if pred_to_remove is not None:
+            print(f'Removing the predictor {pred_to_remove} resulting in {metric.__name__}={best_metric}')
+            available_predictors.append(pred_to_remove)
+            used_predictors.remove(pred_to_remove)
+            backward_flag=False
+    return (best_parameters, best_metric, used_predictors)
+
+    
+def polynomial_dataset(dataset:DataFrame, degrees:int, original_features:list[str])->DataFrame:
+    """
+    Adds new features in the dataset by powering the existing features up to a certain degree
+    Example: if the degree is 3, then the new dataset will include the original features, features**2 and features**3
+        dataset: Dataframe of the original features and observations
+        degress: the degree of the resulting polynomial
+        original_features: list containing the original column names (useful when we want to add new powered features on a modified dataset)
+    """
+    if degrees < 1:
+        raise ValueError('degree must be at least 1')
+    if degrees==1:
+        return dataset
+    new_dataset = dataset.copy()
+    for degree in range(2, degrees+1):
+        for feature in original_features:
+            new_dataset[feature+f'**{degree}'] = np.power(new_dataset[feature], degree)
+    
+    return new_dataset
+
+def polynomial_regression(training_X:DataFrame, training_y:np.ndarray, testing_X:DataFrame, testing_Y:np.ndarray, degrees:range, metrics:list[callable])->DataFrame:
+    """
+    Performs polynomial regression of many degrees, at each time fitting a model and measuring its performance using the metrics. Returns a DataFrame summary with cols:['degree', metrics]
+        training_X: Dataframe of the original features and observations to train on
+        training_y: targets corresponding to training_X
+        testing_X: Dataframe of the original features and observations to test with
+        testing_y: targets corresponding to testing_X
+        degrees: range specifying all the degrees to test
+        metrics: list of functions (callables) to test the polynomial model performance
+    """
+    original_features = list(training_X.columns)
+    #remove non continuous columns
+    discrete = ['<1h ocean', 'inland', 'near ocean', 'island']
+    original_features = [feature for feature in original_features if feature not in discrete]
+    results = DataFrame(columns=['degree'] +[metric.__name__ for metric in metrics])
+    for degree in degrees:
+        #add the features
+        training = polynomial_dataset(training_X, degree, original_features)
+        testing = polynomial_dataset(testing_X, degree, original_features)
+        #scale the new features
+        training, stats = standard_scaling(training, len(original_features), len(training.columns))
+        testing = standard_scaling(testing, len(original_features), len(testing.columns), stats)[0]
+
+        #fit the model and predict
+        params = normal_equation(training, training_y)
+        predictions = linear_predict(testing, params)
+
+        #checking the performance
+        metrics_results= list()
+        for metric in metrics:
+            #Allow both metrics dependent on number of predictors and not
+            try:
+                metric_val= metric(testing_Y, predictions, len(training.columns))
+            except TypeError:
+                metric_val=metric(testing_Y, predictions)
+
+            metrics_results.append( metric_val )
+        
+        #add the new row
+        results.loc[len(results)] = [degree] + metrics_results
+    return results
 
 
 def K_nearest_neighbors(k:int, dataset:np.ndarray, targets:np.ndarray, point:np.ndarray)->float:

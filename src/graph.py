@@ -4,10 +4,6 @@ from pandas import DataFrame
 import numpy as np
 import time
 
-"""
-The functions are designed to work for the California Housing dataset specifically
-"""
-
 def univariate_plot(dataset : DataFrame, start_col:int, end_col:int) -> None:
     """
     Plots appropriate graphs for univariate analysis (histograms and boxplots) for a set of columns from the dataset
@@ -30,8 +26,7 @@ def univariate_plot(dataset : DataFrame, start_col:int, end_col:int) -> None:
 
         axes[2*i+1].boxplot(dataset.iloc[:, col])
         axes[2*i+1].set_title( dataset.columns[col] )
-        axes[2*i+1].set_xlabel('Value')
-        axes[2*i+1].set_ylabel('Frequency')
+        axes[2*i+1].set_ylabel('Value')
         
     plt.tight_layout()
     plt.show()
@@ -47,13 +42,14 @@ def locations_scatter(dataset: DataFrame)-> None:
     plt.ylabel("latitude")
     plt.show()
 
-def correlation_heatmap(dataset: DataFrame)-> None:
+def correlation_heatmap(dataset: DataFrame, start_col:int, end_col:int)-> None:
     """
     Plots the correlation heatmap between every pair of numerical column
         dataset: Pandas DataFrame
+        start_col: starting column
+        end_col: ending column (EXCLUSIVE)
     """
-    #exclude last column since it's not yet numerical
-    matrix = dataset.iloc[:, :9].corr()
+    matrix = dataset.iloc[:, start_col:end_col].corr()
     
     plt.figure(figsize=(8, 6))
     sns.heatmap(matrix, annot=True, cmap='coolwarm')
@@ -133,20 +129,24 @@ def K_Cost(training_k_cost:dict, testing_k_cost:dict, MSE=True):
     plt.grid(True)
     plt.show()
 
-def gradient_descent_tuning(observations:DataFrame, targets:np.ndarray, tuning_values, default_value: float, parameter:str, gradient_descent):
+def gradient_descent_tuning(observations:DataFrame, targets:np.ndarray, tuning_values, default_value: float, parameter:str, gradient_descent, max_iters: int)->dict:
     """
-    Runs gradient descent with multiple values for alpha/epsilon, in each run we capture: the cost and time. Two graphs are plotted
+    Runs gradient descent with multiple values for alpha/epsilon, in each run we capture: the cost and time. Two graphs are plotted. returns the costs and times as a dictionary
         observations: Dataframe of all the observations, shape=(n, p)
         targets: array of the targets (of the observations)
         tuning_values: range of values that tuned parameter takes throughout iterations
         default_value: value taken by the non-tuned parameter
         parameter: 'A' if we tune based on alpha or 'E' if we tune based on epsilon
         gradient_descent: function object of gradient descent
+        max_iters: maximum number of iterations
     """
     zeros = np.zeros(shape=(observations.shape[1] + 1))
     iterations = 0
     times = []
     costs = []
+    observations = observations.to_numpy() if isinstance(observations, DataFrame) else observations
+    observations = np.column_stack( ( np.ones(observations.shape[0]), observations) )
+
     for value in tuning_values:
         iterations+=1
         print(f'iteration #{iterations} starts now')
@@ -159,12 +159,11 @@ def gradient_descent_tuning(observations:DataFrame, targets:np.ndarray, tuning_v
             epsilon = value
         else:
             raise ValueError("parameter can be eiher 'A' or 'E'")
-        
-        start = time.time()
-        params, cost = gradient_descent(observations, targets, alpha, epsilon, zeros)
-        end = time.time()
+        start = time.perf_counter()
+        params, cost = gradient_descent(observations, targets, alpha, epsilon, zeros, max_iters)
+        end = time.perf_counter()
         times.append((end-start)*1000)
-        costs.append(cost.values()[-1])
+        costs.append(list(cost.values())[-1])
     
     parameter_name = 'alpha' if parameter=='A' else 'epsilon'
 
@@ -180,28 +179,12 @@ def gradient_descent_tuning(observations:DataFrame, targets:np.ndarray, tuning_v
     axes[1].set_ylabel('Cost')
     axes[1].set_title(f'{parameter_name} vs Cost')
     axes[1].grid(True)
+    return {tuning_values[i]:{'cost':costs[i], 'time': times[i]} for i in range(len(costs))}
 
 def gradient_descent_convergence(iterations, costs):
     plt.plot(iterations, costs, color='blue')
     plt.xlabel("Iterations")
     plt.ylabel("Cost")
     plt.title("Gradient Descent Convergence")
-    plt.grid(True)
-    plt.show()
-
-def polynomial_regression_graph(degree_metrics:DataFrame):
-    """
-    Plots the Model's performance as the degrees of the polynomial are increasing
-    """
-    colors=['#7209B7', '#3A0CA3', '#4361EE', 
-    '#4CC9F0', '#4895EF', '#560BAD', 
-    '#B5179E', '#E01E37', '#F72585']
-    for i, metric in enumerate(degree_metrics.columns[1:]):
-        plt.plot(degree_metrics.iloc[:, 0], degree_metrics.loc[:, metric], label=metric, color=colors[i%9])
-    
-    plt.xlabel('Degrees')
-    plt.ylabel("Evaluation Metrics")
-    plt.title('Degrees vs Evaluation')
-    plt.legend()
     plt.grid(True)
     plt.show()

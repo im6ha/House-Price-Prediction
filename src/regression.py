@@ -3,37 +3,9 @@ import numpy as np
 from scipy import stats
 from src.clean import standard_scaling
 
-def normal_equation(data:DataFrame|np.ndarray, targets:Series|np.ndarray) -> np.ndarray:
-    """
-    Estimates the Least Squares Coefficients using Normal Equation, return an array whose first element is the bias (intercept) and the remaining elements are the weights
-        data: data matrix
-        y: targets column
-    """
-    if not isinstance(data, np.ndarray):
-        X = data.to_numpy()
-    else:
-        X = data
-    if not isinstance(targets, np.ndarray):
-        y = targets.to_numpy()
-    else:
-        y = targets
-    #add the column of ones to X
-    X= np.insert(X, 0, np.ones( len(y) ), axis=1 )
-    beta, *_ = np.linalg.lstsq(X, y, rcond=None)
-    return beta
-
-
-def linear_predict(data:DataFrame, parameters:np.ndarray)-> np.ndarray:
-    """
-    Predicts the response of every row of the data using a Linear Model with the given parameters and returns the array of predictions (element i of the prediction array corresponds to the prediction of the ith row of the data matrix)
-        data: data matrix
-        parameters: array of parameters, where the first element is the bias (intercept)
-    """
-    data = data.to_numpy()
-    weights = parameters[1:]
-    intercept= parameters[0]
-
-    return (intercept + (data @ weights.T)).T
+"""
+1)- Evaluation Metrics
+"""
 
 def RSS(targets:np.ndarray, predictions: np.ndarray)->float:
     """
@@ -192,6 +164,60 @@ def p_values(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, par
     df = len(targets) - len(parameters)
     return 2 * stats.t.sf(np.abs(t_stats), df)
 
+
+"""
+2)- Linear Regression
+"""
+def normal_equation(data:DataFrame|np.ndarray, targets:Series|np.ndarray) -> np.ndarray:
+    """
+    Estimates the Least Squares Coefficients using Normal Equation, return an array whose first element is the bias (intercept) and the remaining elements are the weights
+        data: data matrix
+        y: targets column
+    """
+    if not isinstance(data, np.ndarray):
+        X = data.to_numpy()
+    else:
+        X = data
+    if not isinstance(targets, np.ndarray):
+        y = targets.to_numpy()
+    else:
+        y = targets
+    #add the column of ones to X
+    X= np.insert(X, 0, np.ones( len(y) ), axis=1 )
+    beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+    return beta
+
+def destandardize_params(parametes:np.ndarray, original_stats:dict)->list:
+    """
+    Gives the parameters for the unscaled features using the original means and std's
+        parameters: LSE parameters for the standardized features
+        original_stats: dictionary containing the original mean and std for all features
+    """
+    
+    stats = list(original_stats.values())
+    scaled_features = len(stats)
+    means = np.array([stats[i][0] for i in range(scaled_features)])
+    stds = np.array([stats[i][1] for i in range(scaled_features)])
+    #weights
+    weights = parametes[1:scaled_features+1] / stds
+
+    #bias
+    bias = parametes[0] - (weights * means).sum()
+
+    return [float(bias)] + weights.tolist()
+
+def linear_predict(data:DataFrame, parameters:np.ndarray)-> np.ndarray:
+    """
+    Predicts the response of every row of the data using a Linear Model with the given parameters and returns the array of predictions (element i of the prediction array corresponds to the prediction of the ith row of the data matrix)
+        data: data matrix
+        parameters: array of parameters, where the first element is the bias (intercept)
+    """
+    data = data.to_numpy()
+    weights = parameters[1:]
+    intercept= parameters[0]
+
+    return (intercept + (data @ weights.T)).T
+
 def stepwise_selection(training_set:DataFrame, training_targets:np.ndarray, predictor_names:list[str], metric:callable, maximize:bool=False)->tuple[np.ndarray,float, list[str]]:
     """
     Performs Hybrid Stepwise Selection, and Evaluate using the Metric. Returns a tuple (parameter_estimates with first element representing the bias, best_metric, list of predictors used in the model)
@@ -213,7 +239,7 @@ def stepwise_selection(training_set:DataFrame, training_targets:np.ndarray, pred
     best_metric = metric(training_targets, predictions, 0)
     best_parameters = [training_targets.mean()]
 
-    #stop when all predictors are included or both forward and backward selections did'nt improve the model
+    #stop when all predictors are included or both forward and backward selections didn't improve the model
     while(len(available_predictors)>0 and (not forward_flag or not backward_flag)):
         forward_flag=True
         backward_flag = True
@@ -256,68 +282,10 @@ def stepwise_selection(training_set:DataFrame, training_targets:np.ndarray, pred
             backward_flag=False
     return (best_parameters, best_metric, used_predictors)
 
-    
-def polynomial_dataset(dataset:DataFrame, degrees:int, original_features:list[str])->DataFrame:
-    """
-    Adds new features in the dataset by powering the existing features up to a certain degree
-    Example: if the degree is 3, then the new dataset will include the original features, features**2 and features**3
-        dataset: Dataframe of the original features and observations
-        degress: the degree of the resulting polynomial
-        original_features: list containing the original column names (useful when we want to add new powered features on a modified dataset)
-    """
-    if degrees < 1:
-        raise ValueError('degree must be at least 1')
-    if degrees==1:
-        return dataset
-    new_dataset = dataset.copy()
-    for degree in range(2, degrees+1):
-        for feature in original_features:
-            new_dataset[feature+f'**{degree}'] = np.power(new_dataset[feature], degree)
-    
-    return new_dataset
 
-def polynomial_regression(training_X:DataFrame, training_y:np.ndarray, testing_X:DataFrame, testing_Y:np.ndarray, degrees:range, metrics:list[callable])->DataFrame:
-    """
-    Performs polynomial regression of many degrees, at each time fitting a model and measuring its performance using the metrics. Returns a DataFrame summary with cols:['degree', metrics]
-        training_X: Dataframe of the original features and observations to train on
-        training_y: targets corresponding to training_X
-        testing_X: Dataframe of the original features and observations to test with
-        testing_y: targets corresponding to testing_X
-        degrees: range specifying all the degrees to test
-        metrics: list of functions (callables) to test the polynomial model performance
-    """
-    original_features = list(training_X.columns)
-    #remove non continuous columns
-    discrete = ['<1h ocean', 'inland', 'near ocean', 'island']
-    original_features = [feature for feature in original_features if feature not in discrete]
-    results = DataFrame(columns=['degree'] +[metric.__name__ for metric in metrics])
-    for degree in degrees:
-        #add the features
-        training = polynomial_dataset(training_X, degree, original_features)
-        testing = polynomial_dataset(testing_X, degree, original_features)
-        #scale the new features
-        training, stats = standard_scaling(training, len(original_features), len(training.columns))
-        testing = standard_scaling(testing, len(original_features), len(testing.columns), stats)[0]
-
-        #fit the model and predict
-        params = normal_equation(training, training_y)
-        predictions = linear_predict(testing, params)
-
-        #checking the performance
-        metrics_results= list()
-        for metric in metrics:
-            #Allow both metrics dependent on number of predictors and not
-            try:
-                metric_val= metric(testing_Y, predictions, len(training.columns))
-            except TypeError:
-                metric_val=metric(testing_Y, predictions)
-
-            metrics_results.append( metric_val )
-        
-        #add the new row
-        results.loc[len(results)] = [degree] + metrics_results
-    return results
-
+"""
+3)- KNN Regression
+"""
 
 def K_nearest_neighbors(k:int, dataset:np.ndarray, targets:np.ndarray, point:np.ndarray)->float:
     """
@@ -371,3 +339,5 @@ def KNN_regression_tuning(k_range:range, training_dataset:DataFrame, training_ta
         #calculate the MSE
         K_MSE[k] = MSE(testing_targets, predictions)
     return K_MSE
+
+

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
+from scipy.special import softmax
 from pingouin import multivariate_normality
 
 
@@ -11,24 +12,21 @@ from pingouin import multivariate_normality
 def logistic_function(observations:np.ndarray, parameters:np.ndarray)->np.ndarray:
     """
     Calculates the logistic function which is the Probability that the observation is 'expensive'
-        observations: Dataframe representing the observations, shape=(n, p)
+        observations: 2D array representing the observations, shape=(n, p)
         parameters: array of the parameters, with the first parameter representing the bias
     """
-
-
+    
     linear_comb = np.dot(observations, parameters.T)
 
     return 1/( 1+np.exp(-linear_comb) )
 
-def cost_function(observations:pd.DataFrame, parameters:np.ndarray, targets:np.ndarray)->float:
+def cost_function(observations:np.ndarray, parameters:np.ndarray, targets:np.ndarray)->float:
     """
     Calculates and returns the cost function which is the log-loss function
         observations: Dataframe of all the observations, shape=(n, p)
         parameters: array of the parameters, with the first parameter representing the bias, shape=(p+1)
         targets: array of the targets (of the observations)
     """
-    observations = np.column_stack( ( np.ones(observations.shape[0]), observations) )
-
     predictions_of_success= logistic_function(observations, parameters)
     predictions_of_failure = 1-predictions_of_success
 
@@ -44,21 +42,17 @@ def cost_function(observations:pd.DataFrame, parameters:np.ndarray, targets:np.n
 
     return -np.sum(predictions)
 
-def gradient(observations:pd.DataFrame, parameters:np.ndarray, targets:np.ndarray)->np.ndarray:
+def compute_cost(predictions: np.ndarray, targets: np.ndarray) -> float:
     """
-    Calculates the gradient and returns an array whose first element is the partial derivative with respect to the bias
-        observations: Dataframe of all the observations, shape=(n, p)
-        parameters: array of the parameters, with the first parameter representing the bias, shape=(p+1)
-        targets: array of the targets (of the observations)
+    Computes the log-loss function using pre-calculated predictions
+        predictions: array of the predictions
+        targets: array of the corresponding targets
     """
-    observations = observations.to_numpy()
-    observations = np.column_stack( ( np.ones(observations.shape[0]), observations) )
-    observations_T= observations.T
-    predictions = logistic_function(observations, parameters)
-    diff = predictions-targets
-    return observations_T@ diff /observations.shape[0]
+    cost = -np.mean(targets *np.log(predictions) +(1 -targets) *np.log(1 -predictions))
+    return float(cost)
 
-def gradient_descent(observations:pd.DataFrame, targets:np.ndarray, alpha:float, epsilon:float, initial_parameters:np.ndarray)->tuple[np.ndarray, dict]:
+
+def gradient_descent(observations:np.ndarray, targets:np.ndarray, alpha:float, epsilon:float, initial_parameters:np.ndarray, max_iters:int)->tuple[np.ndarray, dict]:
     """
     Performs gradient descent and returns the parameters (first element is the bias) and a dictionary whose keys are iterations and values are costs (used for convergence)
         observations: Dataframe of all the observations, shape=(n, p)
@@ -66,32 +60,36 @@ def gradient_descent(observations:pd.DataFrame, targets:np.ndarray, alpha:float,
         alpha: learning rate, specifies the size of the steps (smaller alpha -> slower convergence)
         epsilon: stopping condition, stop when the difference in cost is less than epsilon (smaller epsilon -> closer to the minimum)
         initial_parameters: initial values given to the parameters
+        max_iters: maximum number of iterations for one value of the tuned parameter
     """
     #initialize all parameters
-    parameters = initial_parameters
+    parameters =initial_parameters.copy()
+    iters_costs = {}
+    n_samples =observations.shape[0]
 
-    #difference in cost
-    difference = np.inf
+    predictions = logistic_function(observations, parameters)
+    current_cost = compute_cost(predictions, targets)
 
-    iters_costs = dict()
-    iterations=0
-    while(difference>epsilon):
-        iterations+=1
-        old_cost = cost_function(observations, parameters, targets)
-        gradient_val = gradient(observations, parameters, targets)
-        #update
-        parameters = parameters - alpha * gradient_val
-
-        new_cost = cost_function(observations, parameters, targets)
-        print(new_cost)
-        iters_costs[iterations] = new_cost
-        difference = old_cost - new_cost
-
-        if difference < 0:
-            print('Cost is increasing, alpha is too big')
-            return (parameters, iters_costs)
+    for iteration in range(1, max_iters + 1):
+        grad =(observations.T @ (predictions - targets)) / n_samples
+        new_parameters=parameters - alpha * grad
+        new_predictions= logistic_function(observations, new_parameters)
+        new_cost =compute_cost(new_predictions, targets)
     
-    return (parameters, iters_costs)
+        cost_diff =current_cost -new_cost
+        iters_costs[iteration] = new_cost
+        if cost_diff <0:
+            print(f"Warning: Divergence for alpha={alpha}")
+            break
+        if cost_diff< epsilon:
+            print(f"Converged at iteration {iteration}.")
+            break
+        parameters = new_parameters
+        predictions = new_predictions
+        current_cost = new_cost
+    if iteration == max_iters:
+        print("Reached maximum iterations.")
+    return parameters, iters_costs
             
 
 
@@ -113,8 +111,8 @@ def K_nearest_neighbors(k:int, dataset:np.ndarray, targets:np.ndarray, point:np.
     neighbors_targets = targets[closest_indices]
     result = dict()
     for target_class in ['cheap', 'moderate', 'expensive', 'very expensive']:
-        result[target_class] = (neighbors_targets==target_class).sum()
-    result = dict( sorted(result.items(), key=lambda x: x[1] ) )
+        result[target_class] = (neighbors_targets==target_class).sum() / k
+    result = dict( sorted(result.items(), key=lambda x: x[1]) )
     return result
 
 def KNN_prediction(k:int, dataset:np.ndarray, targets:np.ndarray, testing_dataset:np.ndarray)->np.ndarray:
@@ -132,7 +130,8 @@ def KNN_prediction(k:int, dataset:np.ndarray, targets:np.ndarray, testing_datase
 
     predictions = []
     for row in testing_dataset:
-        t = list(K_nearest_neighbors(k, dataset, targets, row).keys())[0]
+        probs = K_nearest_neighbors(k, dataset, targets, row)
+        t = max(probs, key=probs.get)
         predictions.append(t)
     return np.array(predictions)
 
@@ -174,7 +173,7 @@ def prior_probabilities(targets:np.ndarray)->dict:
     Estimates the prior probabilities for each class (estimated as a fraction) and returns a dictionary whose keys are the classes and values are their proportion
         targets: targets of every observation
     """
-    classes= np.unique(targets)
+    classes=['cheap', 'moderate', 'expensive', 'very expensive']
     results = dict()
     total_size = len(targets)
     for class_val in classes:
@@ -190,22 +189,22 @@ def means_estimate(data:pd.DataFrame, targets:np.ndarray):
     data = data.copy()
     data['targets'] = targets
     result = data.groupby('targets').mean()
-    #reorder, since by default they'll be sorted alphabetically
-    result = result.iloc[[0, 2, 1, 3]]
+    #reorder
+    result = result.reindex(['cheap', 'moderate', 'expensive', 'very expensive'])
     return result
     
 
-def covariance_matrices(data:pd.DataFrame, targets:np.ndarray, class_means:pd.DataFrame)->list:
+def covariance_matrices(data:pd.DataFrame, targets:np.ndarray, class_means:np.ndarray)->list:
     """
     Calculates the covariance matrix for every class, and returns them as a list
         data: Dataframe of observations
         targets: targets of observations
-        class_means: DataFrame whose rows are mean vectors of different classes
+        class_means: 2d array whose rows are mean vectors of different classes
     """
     #calculate the covariance matrix of each class separately and append them to a list
     covariance = list()
-
-    for i, cls in enumerate(np.unique(targets)):
+    classes = ['cheap', 'moderate', 'expensive', 'very expensive']
+    for i, cls in enumerate(classes):
         cls_observations = data[targets == cls]
         ceneterd = cls_observations.to_numpy() - class_means[i]
         ceneterd_T = ceneterd.T
@@ -221,7 +220,8 @@ def sample_sizes(data:pd.DataFrame, targets:np.ndarray)->np.ndarray:
         class_means: DataFrame whose rows are mean vectors of different classes
     """
     sizes=list()
-    for cls in np.unique(targets):
+    classes = ['cheap', 'moderate', 'expensive', 'very expensive']
+    for cls in classes:
         cls_observations = data[targets == cls]
         sizes.append(len(cls_observations))
     return np.array(sizes)
@@ -277,6 +277,40 @@ def qda_probability(observation:np.ndarray, class_means: list|np.ndarray, covari
 
     return (prior_probabilities[cls_index] * densities[cls_index] )/ np.sum( densities*prior_probabilities )
 
+def discriminant_analysis_one_point(point:np.ndarray, class_means: list|np.ndarray, covariance:np.ndarray|list, prior_probabilities: list|np.ndarray, lda:bool)->dict:
+    """
+    Predicts the class of one point using LDA or QDA
+    observations: DataFrame of the data to use
+            class_means: a list (or array) representing the mean vectors of each class
+            covariance: list of covariance matrices
+            prior_probabilities: a list (or array) representing the prior probabilities of each class
+            lda: True to use LDA, else QDA is used
+    """
+    probabilities= dict()
+    for cls in ['cheap', 'moderate', 'expensive', 'very expensive']:
+                if lda:
+                    probabilities[cls] = lda_probability(point, class_means, covariance, prior_probabilities, cls)
+                else:
+                    probabilities[cls] = qda_probability(point, class_means, covariance, prior_probabilities, cls)
+    return probabilities
+    
+def discriminant_analysis_all_probas(observations:pd.DataFrame, class_means: list|np.ndarray, covariance:np.ndarray|list, prior_probabilities: list|np.ndarray, lda:bool)->list:
+    """
+    Predicts a class for every observation (every row) in observations using LDA or QDA, returns a list of predicted probabilities of each class
+        observations: DataFrame of the data to use
+        class_means: a list (or array) representing the mean vectors of each class
+        covariance: list of covariance matrices
+        prior_probabilities: a list (or array) representing the prior probabilities of each class
+        lda: True to use LDA, else QDA is used
+    """
+    predictions = list()
+    observations = observations.copy()
+    observations = observations.to_numpy()
+    for obs in observations:
+        probabilities = discriminant_analysis_one_point(obs, class_means, covariance, prior_probabilities, lda)
+        predictions.append(probabilities)
+    return predictions
+
 def discriminant_analysis_prediction(observations:pd.DataFrame, class_means: list|np.ndarray, covariance:np.ndarray|list, prior_probabilities: list|np.ndarray, lda:bool)->list:
     """
     Predicts a class for every observation (every row) in observations using LDA or QDA, returns a list of predicted classes
@@ -286,20 +320,12 @@ def discriminant_analysis_prediction(observations:pd.DataFrame, class_means: lis
         prior_probabilities: a list (or array) representing the prior probabilities of each class
         lda: True to use LDA, else QDA is used
     """
-    predictions = list()
-    probabilities=dict()
-    observations = observations.copy()
-    observations = observations.to_numpy()
-    for obs in observations:
-        for cls in ['cheap', 'moderate', 'expensive', 'very expensive']:
-            if lda:
-                probabilities[cls] = lda_probability(obs, class_means, covariance, prior_probabilities, cls)
-            else:
-                probabilities[cls] = qda_probability(obs, class_means, covariance, prior_probabilities, cls)
-
-        predicted_class = max(probabilities, key=probabilities.get)
-        predictions.append(predicted_class)
-    return predictions
+    predictions = discriminant_analysis_all_probas(observations, class_means, covariance, prior_probabilities, lda)
+    predicted_classes = list()
+    for prediction in predictions:
+        predicted_class = max(prediction, key=prediction.get)
+        predicted_classes.append(predicted_class)
+    return predicted_classes
 
 def parameters_estimate_perclass(observations:pd.DataFrame, targets:list|np.ndarray)->dict:
     """
@@ -349,7 +375,10 @@ def naive_bayes_probabilities(observation:pd.Series, mean_std_estimates:dict, pr
             predictor_probabilities.append(probability)
 
         results[cls] = np.sum(predictor_probabilities) + np.log( prior_probabilities[index] )
-    return results
+
+    classes = ['cheap', 'moderate', 'expensive', 'very expensive']
+    normalized_probs = softmax([results[c] for c in classes])
+    return dict(zip(classes, normalized_probs))
 
 def naive_bayes_prediction(observations:pd.DataFrame, mean_std_estimates:dict, prior_probabilities:list|np.ndarray)->list:
     """

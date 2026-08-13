@@ -20,27 +20,6 @@ def logistic_function(observations:np.ndarray, parameters:np.ndarray)->np.ndarra
 
     return 1/( 1+np.exp(-linear_comb) )
 
-def cost_function(observations:np.ndarray, parameters:np.ndarray, targets:np.ndarray)->float:
-    """
-    Calculates and returns the cost function which is the log-loss function
-        observations: Dataframe of all the observations, shape=(n, p)
-        parameters: array of the parameters, with the first parameter representing the bias, shape=(p+1)
-        targets: array of the targets (of the observations)
-    """
-    predictions_of_success= logistic_function(observations, parameters)
-    predictions_of_failure = 1-predictions_of_success
-
-    #apply log
-    predictions_of_success = np.log(predictions_of_success)
-    predictions_of_failure = np.log(predictions_of_failure)
-
-    #multiply by the targets
-    predictions_of_success = np.dot(targets, predictions_of_success)
-    predictions_of_failure = np.dot((1-targets), predictions_of_failure)
-
-    predictions = predictions_of_failure + predictions_of_success
-
-    return -np.sum(predictions)
 
 def compute_cost(predictions: np.ndarray, targets: np.ndarray) -> float:
     """
@@ -48,6 +27,8 @@ def compute_cost(predictions: np.ndarray, targets: np.ndarray) -> float:
         predictions: array of the predictions
         targets: array of the corresponding targets
     """
+    eps = 1e-15
+    predictions=np.clip(predictions, eps, 1 - eps)
     cost = -np.mean(targets *np.log(predictions) +(1 -targets) *np.log(1 -predictions))
     return float(cost)
 

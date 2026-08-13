@@ -105,24 +105,6 @@ def adjusted_r2(targets:np.ndarray, predictions: np.ndarray, p: int)->float:
     n=len(targets)
     return 1 - ( (RSS_val/(n-p-1)) / (TSS_val/(n-1)) )
 
-def F_statistic(targets:np.ndarray, predictions: np.ndarray, p:int)->tuple[float, float]:
-    """
-    Calculates the F-Statistic which is used in hypothesis testing, returns the F-statistic and the p-value (probability of the null hypothesis being true)
-        targets: array of the targets (y)
-        predictions: array of the prediction (y-hat)
-        p: number of predictors
-    """
-    unexplained_variance = RSS(targets, predictions)
-
-    explained_variance = TSS(targets)-unexplained_variance
-
-    num_dof = p
-    denum_dof = len(targets) - p - 1
-
-    F_stat = (explained_variance/num_dof)/(unexplained_variance/denum_dof)
-    p_value = stats.f.sf(F_stat, num_dof, denum_dof)
-
-    return (F_stat, p_value)
 
 def standard_errors(dataset:DataFrame, targets:np.ndarray, predictions: np.ndarray, p: int)->np.ndarray:
     """

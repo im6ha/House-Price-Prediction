@@ -4,3 +4,4 @@ scipy
 pingouin
 matplotlib
 seaborn
+streamlit

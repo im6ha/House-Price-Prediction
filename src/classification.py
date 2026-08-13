@@ -62,12 +62,13 @@ def gradient_descent(observations:np.ndarray, targets:np.ndarray, alpha:float, e
         if cost_diff <0:
             print(f"Warning: Divergence for alpha={alpha}")
             break
-        if cost_diff< epsilon:
-            print(f"Converged at iteration {iteration}.")
-            break
+
         parameters = new_parameters
         predictions = new_predictions
         current_cost = new_cost
+        if cost_diff< epsilon:
+            print(f"Converged at iteration {iteration}.")
+            break
     if iteration == max_iters:
         print("Reached maximum iterations.")
     return parameters, iters_costs

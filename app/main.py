@@ -17,7 +17,7 @@ total_rooms = st.number_input("Total Rooms", min_value=1, value=2600)
 total_bedrooms = st.number_input("Total Bedrooms", min_value=1, value=500)
 population = st.number_input("Population", min_value=1, value=1500)
 households =st.number_input("Households", min_value=1, value=500)
-median_income= st.number_input("Median Income (in $)", min_value=0.0, value=3000.0) / 1000
+median_income= st.number_input("Median Income (in $)", min_value=0.0, value=30000.0) / 10000
 ocean_proximity = st.selectbox(
     "Ocean Proximity",["NEAR BAY", "<1H OCEAN", "INLAND","NEAR OCEAN","ISLAND"]
 )

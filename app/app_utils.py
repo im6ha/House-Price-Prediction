@@ -3,6 +3,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+CACHE = ROOT / "cache"
+DATA = ROOT / "data"
+
 from src.regression import KNN_prediction
 from src.classification import logistic_function, K_nearest_neighbors, discriminant_analysis_one_point,naive_bayes_probabilities
 
@@ -44,7 +50,7 @@ def preprocess(longitude, latitude, housing_median_age, total_rooms, total_bedro
         'island':island
     }
 
-    with open('../cache/stats.pkl', 'rb') as f :
+    with open(CACHE / 'stats.pkl', 'rb') as f :
         stats = pickle.load(f)
 
     #log transforms
@@ -63,15 +69,15 @@ def load_dataset():
     """
     Load the dataset as X and y (for regression and classification)
     """
-    training_dataset = pd.read_csv('../data/processed/training_data.csv')
-    testing_dataset = pd.read_csv('../data/processed/testing_data.csv')
+    training_dataset = pd.read_csv(DATA/'data/processed/training_data.csv')
+    testing_dataset = pd.read_csv(DATA/'data/processed/testing_data.csv')
     complete_dataset = pd.concat([training_dataset, testing_dataset])
     X= pd.concat([complete_dataset.iloc[:, 0:3], complete_dataset.iloc[:, 4:]], axis=1 ).to_numpy()
     y= complete_dataset.iloc[:, 3].to_numpy()
 
     #for classification
-    training_dataset = pd.read_csv('../data/classification/4_classes/training_data.csv')
-    testing_dataset = pd.read_csv('../data/classification/4_classes/testing_data.csv')
+    training_dataset = pd.read_csv(DATA/'data/classification/4_classes/training_data.csv')
+    testing_dataset = pd.read_csv(DATA/'data/classification/4_classes/testing_data.csv')
     complete_dataset = pd.concat([training_dataset, testing_dataset])
     y_classification= complete_dataset.iloc[:, 3].to_numpy()
 
@@ -87,13 +93,13 @@ def regression_predict(data, X, y):
     """
     data = np.array(list(data.values()))
     #linear regression
-    with open('../cache/linear_regression.pkl', 'rb') as f:
+    with open(CACHE/ 'linear_regression.pkl', 'rb') as f:
         parameters = np.array(pickle.load(f)["parameters"])
 
     linear_regression_prediction = np.dot(parameters[1:], data) + parameters[0]
 
     #knn regression
-    with open ('../cache/knn_regression.pkl', 'rb') as f:
+    with open (CACHE/ 'knn_regression.pkl', 'rb') as f:
         k = pickle.load(f)['k']
 
     knn_prediction= KNN_prediction(k, X, y, data)[0]
@@ -113,7 +119,7 @@ def classification_predict(data, X, y):
     data_series = pd.Series(data)
     data = np.array(list(data.values()))
     #logistic regression
-    with open('../cache/logistic_regression.pkl', 'rb') as f:
+    with open(CACHE/ 'logistic_regression.pkl', 'rb') as f:
         parameters = np.array(pickle.load(f)["parameters"])
 
     data_bias = np.insert(data, 0, 1)
@@ -125,20 +131,20 @@ def classification_predict(data, X, y):
     }
 
     #KNN classification
-    with open('../cache/knn_classification.pkl', 'rb') as f:
+    with open(CACHE/ 'knn_classification.pkl', 'rb') as f:
         k = pickle.load(f)['k']
     
     knn = K_nearest_neighbors(k, X, y, data)
 
     #generative models
-    means = np.load('../cache/means.npy')
-    covariance_matrices = np.load('../cache/covariance_matrices.npy')
-    pooled_covariance = np.load('../cache/pooled_covariance.npy')
-    prior_proba =  np.load('../cache/prior_probabilities.npy')
+    means = np.load(CACHE/ 'means.npy')
+    covariance_matrices = np.load(CACHE/ 'covariance_matrices.npy')
+    pooled_covariance = np.load(CACHE/ 'pooled_covariance.npy')
+    prior_proba =  np.load(CACHE/ 'prior_probabilities.npy')
     lda = discriminant_analysis_one_point(data, means,pooled_covariance, prior_proba, True)
     qda = discriminant_analysis_one_point(data, means,covariance_matrices, prior_proba, False)
 
-    with open('../cache/mean_std_estimates.pkl', 'rb') as f:
+    with open(CACHE/ 'mean_std_estimates.pkl', 'rb') as f:
         mean_std_estimates = pickle.load(f)
     naive_bayes = naive_bayes_probabilities(data_series, mean_std_estimates, prior_proba)
 

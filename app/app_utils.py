@@ -1,12 +1,7 @@
 import pickle
 import numpy as np
 import pandas as pd
-from pathlib import Path
 import streamlit as st
-import sys
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from src.regression import KNN_prediction
 from src.classification import logistic_function, K_nearest_neighbors, discriminant_analysis_one_point,naive_bayes_probabilities
@@ -17,13 +12,13 @@ def preprocess(longitude, latitude, housing_median_age, total_rooms, total_bedro
     """
     #one hot encoding
     lt_1h_ocean, inland, near_ocean, island = 0,0,0,0
-    if ocean_proximity == "<1H OCEAN":
+    if ocean_proximity =="<1H OCEAN":
         lt_1h_ocean=1
     elif ocean_proximity == "INLAND":
         inland=1
-    elif ocean_proximity == "ISLAND":
+    elif ocean_proximity== "ISLAND":
         island = 1
-    elif ocean_proximity == "NEAR OCEAN":
+    elif ocean_proximity =="NEAR OCEAN":
         near_ocean = 1
 
     #adding the engineered features
@@ -49,7 +44,7 @@ def preprocess(longitude, latitude, housing_median_age, total_rooms, total_bedro
         'island':island
     }
 
-    with open('cache/stats.pkl', 'rb') as f :
+    with open('../cache/stats.pkl', 'rb') as f :
         stats = pickle.load(f)
 
     #log transforms
@@ -68,15 +63,15 @@ def load_dataset():
     """
     Load the dataset as X and y (for regression and classification)
     """
-    training_dataset = pd.read_csv('data/processed/training_data.csv')
-    testing_dataset = pd.read_csv('data/processed/testing_data.csv')
+    training_dataset = pd.read_csv('../data/processed/training_data.csv')
+    testing_dataset = pd.read_csv('../data/processed/testing_data.csv')
     complete_dataset = pd.concat([training_dataset, testing_dataset])
     X= pd.concat([complete_dataset.iloc[:, 0:3], complete_dataset.iloc[:, 4:]], axis=1 ).to_numpy()
     y= complete_dataset.iloc[:, 3].to_numpy()
 
     #for classification
-    training_dataset = pd.read_csv('data/classification/4_classes/training_data.csv')
-    testing_dataset = pd.read_csv('data/classification/4_classes/testing_data.csv')
+    training_dataset = pd.read_csv('../data/classification/4_classes/training_data.csv')
+    testing_dataset = pd.read_csv('../data/classification/4_classes/testing_data.csv')
     complete_dataset = pd.concat([training_dataset, testing_dataset])
     y_classification= complete_dataset.iloc[:, 3].to_numpy()
 
@@ -92,13 +87,13 @@ def regression_predict(data, X, y):
     """
     data = np.array(list(data.values()))
     #linear regression
-    with open('cache/linear_regression.pkl', 'rb') as f:
+    with open('../cache/linear_regression.pkl', 'rb') as f:
         parameters = np.array(pickle.load(f)["parameters"])
 
     linear_regression_prediction = np.dot(parameters[1:], data) + parameters[0]
 
     #knn regression
-    with open ('cache/knn_regression.pkl', 'rb') as f:
+    with open ('../cache/knn_regression.pkl', 'rb') as f:
         k = pickle.load(f)['k']
 
     knn_prediction= KNN_prediction(k, X, y, data)[0]
@@ -118,9 +113,11 @@ def classification_predict(data, X, y):
     data_series = pd.Series(data)
     data = np.array(list(data.values()))
     #logistic regression
-    with open('cache/logistic_regression.pkl', 'rb') as f:
+    with open('../cache/logistic_regression.pkl', 'rb') as f:
         parameters = np.array(pickle.load(f)["parameters"])
-    probability_expensive = float(logistic_function(data, parameters))
+
+    data_bias = np.insert(data, 0, 1)
+    probability_expensive = float(logistic_function(data_bias, parameters))
 
     log_regression = {
         'cheap' : 1.0-probability_expensive,
@@ -128,20 +125,20 @@ def classification_predict(data, X, y):
     }
 
     #KNN classification
-    with open('cache/knn_classification.pkl', 'rb') as f:
+    with open('../cache/knn_classification.pkl', 'rb') as f:
         k = pickle.load(f)['k']
     
     knn = K_nearest_neighbors(k, X, y, data)
 
     #generative models
-    means = np.load('cache/means.npy')
-    covariance_matrices = np.load('cache/covariance_matrices.npy')
-    pooled_covariance = np.load('cache/pooled_covariance.npy')
-    prior_proba =  np.load('cache/prior_probabilities.npy')
+    means = np.load('../cache/means.npy')
+    covariance_matrices = np.load('../cache/covariance_matrices.npy')
+    pooled_covariance = np.load('../cache/pooled_covariance.npy')
+    prior_proba =  np.load('../cache/prior_probabilities.npy')
     lda = discriminant_analysis_one_point(data, means,pooled_covariance, prior_proba, True)
     qda = discriminant_analysis_one_point(data, means,covariance_matrices, prior_proba, False)
 
-    with open('cache/mean_std_estimates.pkl', 'rb') as f:
+    with open('../cache/mean_std_estimates.pkl', 'rb') as f:
         mean_std_estimates = pickle.load(f)
     naive_bayes = naive_bayes_probabilities(data_series, mean_std_estimates, prior_proba)
 
@@ -149,15 +146,15 @@ def classification_predict(data, X, y):
 
 
 def print_info(regression, log_regression, knn, lda, qda, naive_bayes):
+    """
+    Disclaimer: this function was (the only one) generated by AI tools, as it doesn't contribute to the any of the ML algorithms, and is a frontend interface only.
+    """
     st.divider()
 
     st.header("📊 Prediction Results")
 
     col1, col2, col3 = st.columns(3)
 
-    # ==========================================
-    # Regression
-    # ==========================================
     with col1:
         st.subheader("📈 Regression")
 
@@ -176,9 +173,6 @@ def print_info(regression, log_regression, knn, lda, qda, naive_bayes):
             )
 
 
-    # ==========================================
-    # Binary Classification
-    # ==========================================
     with col2:
         st.subheader(" Binary Classification")
 
@@ -193,10 +187,6 @@ def print_info(regression, log_regression, knn, lda, qda, naive_bayes):
             # FIX: Added missing closing '**' at the end of the string below
             st.write(f"Expensive: **{log_regression['expensive']:.2%}**")
 
-
-    # ==========================================
-    # Multi-class Classification
-    # ==========================================
     with col3:
         st.subheader(" Multi-class Classification")
 
